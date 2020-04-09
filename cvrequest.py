@@ -4,14 +4,20 @@ from lxml import html
 import requests
 from pathlib import Path
 
-def currentstats(location):
-    url = 'https://www.worldometers.info/coronavirus/country/us/'
+def currentstats(location, size):
+    if size == 'State':
+        url = 'https://www.worldometers.info/coronavirus/country/us/'
+        tablename = '//table[@id="usa_table_countries_yesterday"]'
+        pathstring = './/td[contains(text(), "{}")]'.format(location)
+    elif size == 'Country':
+        url = 'https://www.worldometers.info/coronavirus/'
+        tablename = '//table[@id="main_table_countries_yesterday"]'
+        pathstring = './/td/a[contains(text(), "{}")]'.format(location)
     page = requests.get(url)
 
     tree = html.fromstring(page.content)
     
-    for table in tree.xpath('//table[@id="usa_table_countries_today"]'):
-        pathstring = './/td[contains(text(), "{}")]'.format(location)
+    for table in tree.xpath(tablename):
         for tr in table.xpath('.//tr'):
             tds = tr.xpath(pathstring)
             if tds:
@@ -56,7 +62,8 @@ def currentstats(location):
                         else:
                             print('Constant Death Growth factor')
                 print('----------------------------------------')
-currentstats("California")
-currentstats("New York")
-currentstats("Nevada")
-currentstats("USA Total")
+currentstats("California", 'State')
+currentstats("New York", 'State')
+currentstats("Nevada", 'State')
+currentstats("USA Total", 'State')
+currentstats("Italy", 'Country')

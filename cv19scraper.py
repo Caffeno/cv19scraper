@@ -6,8 +6,15 @@ import DateTime
 import time
 from pathlib import Path
 
-def findstats(location):
-    url = 'https://www.worldometers.info/coronavirus/country/us/'
+def findstats(location, size):
+    if size == 'State':
+        url = 'https://www.worldometers.info/coronavirus/country/us/'
+        tablename = '//table[@id="usa_table_countries_yesterday"]'
+        pathstring = './/td[contains(text(), "{}")]'.format(location)
+    elif size == 'Country':
+        url = 'https://www.worldometers.info/coronavirus/'
+        tablename = '//table[@id="main_table_countries_yesterday"]'
+        pathstring = './/td/a[contains(text(), "{}")]'.format(location)
 
     page = requests.get(url)
     tree = html.fromstring(page.content)
@@ -17,8 +24,7 @@ def findstats(location):
     else:
         deathsfile = open("new_deaths_{}.txt".format(location), "w+")
         infectionfile = open("new_infections_{}.txt".format(location), "w+")
-    for table in tree.xpath('//table[@id="usa_table_countries_yesterday"]'):
-        pathstring = './/td[contains(text(), "{}")]'.format(location)
+    for table in tree.xpath(tablename):
         for tr in table.xpath('.//tr'):
             tds = tr.xpath(pathstring)
             if tds:
@@ -70,10 +76,11 @@ def main():
         lastrun = -1
         rundate = open('lastran.txt', 'w+')
     if lastrun < today and hour >= 18:
-        findstats('California')
-        findstats('New York')
-        findstats('Nevada')
-        findstats('USA Total')
+        findstats('California', 'State')
+        findstats('New York', 'State')
+        findstats('Nevada', 'State')
+        findstats('USA Total', 'State')
+        findstats('Italy', 'Country')
         rundate.close()
         newrun = open('lastran.txt', 'w+')
         newrun.write(str(today))
@@ -82,3 +89,4 @@ def main():
     else:
         print('run it after 6pm')
 main()
+
