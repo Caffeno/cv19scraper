@@ -6,6 +6,98 @@ import DateTime
 import time
 from pathlib import Path
 
+class Scraper:
+    datalocations = {}
+    datalocations['cases'] = './/td[2]/text()'
+    datalocations['newcases'] = './/td[3]/text()'
+    datalocations['deaths'] = './/td[4]/text()'
+    datalocations['newdeaths'] = './/td[5]/text()'
+    
+    url = {}
+    tablename = {}
+    pathstring = {}
+    files = {}
+
+    url['State'] = 'https://www.worldometers.info/coronavirus/country/us/'
+    tablename['State'] = '//table[@id="usa_table_countries_yesterday"]'
+    pathstring['State'] = './/td[contains(text(), "{}")]'
+    url['Country'] = 'https://www.worldometers.info/coronavirus/'
+    tablename['Country'] = '//table[@id="main_table_countries_yesterday"]'
+    pathstring['Country'] = './/td/a[contains(text(), "{}")]'
+
+    def getpage(self, url):
+        r = requests.get(url)
+        return r
+        #if r.status_code == 200:
+        #    return r.content
+        #else:
+        #    # TODO: Error handling
+        #    return None
+    
+    
+    def gettable(self, location, size):
+        pathstring = self.pathstring[size].format(location)
+        page = self.getpage(self.url[size])
+        tree = html.fromstring(page.content)
+        
+        for table in tree.xpath(self.tablename[size]):
+            for tr in table.xpath('.//tr'):
+                if tr.xpath(self.pathstring[size].format(location)):
+                    return tr
+
+    def openfiles(self, location, mode):
+        self.files['infections'] = open('new_infections_{}.txt'.format(location), mode)
+        self.files['deaths'] = open('new_deaths_{}.txt'.format(location), mode)
+        self.files['infectionrates'] = open('infectionsrate{}.txt'.format(location), mode)
+        self.files['deathrates'] = open('deathsrate{}.txt'.format(location), mode)
+    
+    def closefiles(self):
+        for x in self.files:
+            self.files[x].close()
+    
+    def getstat(self, tr, value):
+        stat = tr.xpath(value)[0].strip().replace('+', '').replace(',', '')
+        if stat == '':
+            stat = '0'
+        return stat
+
+    def storedata(self, location, size):
+        tr = self.gettable(location, size)
+        self.openfiles(location, 'a')
+        new_infections = self.getstat(tr, self.datalocations['newcases']) 
+        new_deaths = self.getstat(tr, self.datalocations['newdeaths'])
+        self.files['infections'].write(new_infections + '\n')
+        self.files['deaths'].write(new_deaths + '\n')
+        self.closefiles()
+        
+    def calculaterate(self, f):
+        lines = f.read().splitlines()
+        if len(lines) > 1:
+            new = int(lines.pop())
+            old = int(lines.pop())
+            old = 1 if old == 0 else old
+            return (new / old)
+        else:
+            return ''
+
+    def storerates(self, location):
+        self.openfiles(location, 'r')
+        newdeathrate = self.calculaterate(self.files['deaths'])
+        newinfectionrate = self.calculaterate(self.files['infections'])
+        self.closefiles()
+        if newdeathrate != '' and newinfectionrate != '':
+            self.openfiles(location, 'a')
+            self.files['deathrates'].write(str(newdeathrate) + '\n')
+            self.files['infectionrates'].write(str(newinfectionrate) + '\n')
+            self.closefiles()
+
+    def process(self, location, size):
+        self.storedata(location, size)
+        self.storerates(location)
+
+#    def display(self, location, size):
+        
+'''
 def findstats(location, size):
     if size == 'State':
         url = 'https://www.worldometers.info/coronavirus/country/us/'
@@ -18,6 +110,7 @@ def findstats(location, size):
 
     page = requests.get(url)
     tree = html.fromstring(page.content)
+
     if Path('new_deaths_{}.txt'.format(location)).is_file() and Path('new_infections_{}.txt'.format(location)).is_file():
         deathsfile = open("new_deaths_{}.txt".format(location), "a")
         infectionfile = open("new_infections_{}.txt".format(location), "a")
@@ -60,10 +153,12 @@ def findstats(location, size):
                         secondlastinfectionrate = 1
                     deathsrate.write(str(lastdeathrate / secondlastdeathrate) + '\n')
                     infectionsrate.write(str(lastinfectionrate / secondlastinfectionrate) + '\n')
-
+'''
 
 
 def main():
+    
+    r = Scraper()
     day = DateTime.DateTime()
     daysplit = str(day)
     dayparts = daysplit.split(' ')
@@ -76,17 +171,19 @@ def main():
         lastrun = -1
         rundate = open('lastran.txt', 'w+')
     if lastrun < today and hour >= 18:
-        findstats('California', 'State')
-        findstats('New York', 'State')
-        findstats('Nevada', 'State')
-        findstats('USA Total', 'State')
-        findstats('Italy', 'Country')
+        r.process('California', 'State')
+        r.process('Nevada', 'State')
+        r.process('New York', 'State')
+        r.process('USA Total', 'State')
+        r.process('Italy', 'Country')
+        r.process('Spain', 'Country')
         rundate.close()
         newrun = open('lastran.txt', 'w+')
         newrun.write(str(today))
     elif today == lastrun:
-        print('run it tomorrow after 6pm')
+        print('run it tomorrow after 6pm for the update')
     else:
-        print('run it after 6pm')
+        print('run it after 6pm for the update')
+
 main()
 
